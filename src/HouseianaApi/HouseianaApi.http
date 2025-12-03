@@ -1,0 +1,6 @@
+@HouseianaApi_HostAddress = http://localhost:5293
+
+GET {{HouseianaApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
