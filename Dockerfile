@@ -20,12 +20,9 @@ WORKDIR /app
 # Copy published files
 COPY --from=build /app/publish .
 
-# Expose port
-EXPOSE 8080
-
 # Set environment variables
-ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV PORT=8080
 
 # Run the application
 ENTRYPOINT ["dotnet", "HouseianaApi.dll"]
