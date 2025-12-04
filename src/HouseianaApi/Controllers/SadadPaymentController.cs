@@ -216,6 +216,71 @@ namespace HouseianaApi.Controllers
         }
 
         /// <summary>
+        /// Debug endpoint to show checksum generation details
+        /// </summary>
+        [HttpPost("debug")]
+        public IActionResult DebugChecksum([FromBody] SadadPaymentRequestDto request)
+        {
+            var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            var orderId = request.OrderId ?? "test-order-123";
+            var txnAmount = request.Amount.ToString("F2");
+            var itemName = request.ItemName ?? "Booking Payment";
+
+            // Build checksum data exactly as in service
+            var checksumData = new
+            {
+                merchant_id = _sadadService.MerchantId,
+                ORDER_ID = orderId,
+                WEBSITE = _sadadService.WebsiteUrl,
+                TXN_AMOUNT = txnAmount,
+                CUST_ID = request.CustomerEmail,
+                EMAIL = request.CustomerEmail,
+                MOBILE_NO = request.CustomerMobile,
+                CALLBACK_URL = _sadadService.CallbackUrl,
+                txnDate = txnDate,
+                productdetail = new[]
+                {
+                    new
+                    {
+                        order_id = orderId,
+                        quantity = "1",
+                        amount = txnAmount,
+                        itemname = itemName
+                    }
+                }
+            };
+
+            var checksumPayload = new
+            {
+                postData = checksumData,
+                secretKey = _sadadService.SecretKey
+            };
+
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = false,
+                PropertyNamingPolicy = null
+            };
+
+            var jsonPayload = System.Text.Json.JsonSerializer.Serialize(checksumPayload, jsonOptions);
+            var checksum = _sadadService.GenerateChecksum(jsonPayload);
+
+            return Ok(new
+            {
+                jsonPayload = jsonPayload,
+                checksumHash = checksum,
+                keyInfo = new
+                {
+                    secretKey = _sadadService.SecretKey,
+                    merchantId = _sadadService.MerchantId,
+                    combinedKey = _sadadService.SecretKey + _sadadService.MerchantId,
+                    keyLength = (_sadadService.SecretKey + _sadadService.MerchantId).Length,
+                    first16Chars = (_sadadService.SecretKey + _sadadService.MerchantId).Substring(0, 16)
+                }
+            });
+        }
+
+        /// <summary>
         /// Verify a payment status
         /// </summary>
         [HttpGet("verify/{orderId}")]
