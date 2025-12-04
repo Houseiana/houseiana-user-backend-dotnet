@@ -49,8 +49,21 @@ namespace HouseianaApi.Controllers
                     // Set amount and details from booking
                     request.Amount = (decimal)booking.TotalPrice;
                     request.OrderId = booking.Id;
-                    request.CustomerEmail = booking.Guest?.Email ?? request.CustomerEmail;
-                    request.CustomerMobile = booking.Guest?.Phone ?? request.CustomerMobile;
+
+                    // Use provided values, fall back to guest record, then use defaults
+                    // Email and Mobile are required by Sadad
+                    request.CustomerEmail = !string.IsNullOrEmpty(request.CustomerEmail)
+                        ? request.CustomerEmail
+                        : !string.IsNullOrEmpty(booking.Guest?.Email)
+                            ? booking.Guest.Email
+                            : "guest@houseiana.net";
+
+                    request.CustomerMobile = !string.IsNullOrEmpty(request.CustomerMobile)
+                        ? request.CustomerMobile
+                        : !string.IsNullOrEmpty(booking.Guest?.Phone)
+                            ? booking.Guest.Phone
+                            : "12345678";
+
                     request.ItemName = $"Booking - {booking.Property?.Title ?? "Property"}";
 
                     // Update booking status to awaiting payment
