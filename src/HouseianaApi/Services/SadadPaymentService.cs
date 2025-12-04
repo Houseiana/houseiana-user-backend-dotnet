@@ -10,6 +10,7 @@ namespace HouseianaApi.Services
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<SadadPaymentService> _logger;
+        private readonly HttpClient _httpClient;
         private const string IV = "@@@@&&&&####$$$$";
 
         // JSON options to match PHP's json_encode output exactly
@@ -20,10 +21,11 @@ namespace HouseianaApi.Services
             PropertyNamingPolicy = null // Keep exact property names
         };
 
-        public SadadPaymentService(IConfiguration configuration, ILogger<SadadPaymentService> logger)
+        public SadadPaymentService(IConfiguration configuration, ILogger<SadadPaymentService> logger, HttpClient httpClient)
         {
             _configuration = configuration;
             _logger = logger;
+            _httpClient = httpClient;
         }
 
         public string MerchantId => _configuration["Sadad:MerchantId"] ?? throw new InvalidOperationException("Sadad MerchantId not configured");
@@ -32,17 +34,105 @@ namespace HouseianaApi.Services
         public string CallbackUrl => _configuration["Sadad:CallbackUrl"] ?? throw new InvalidOperationException("Sadad CallbackUrl not configured");
         public bool IsTestMode => _configuration.GetValue<bool>("Sadad:TestMode", true);
         public string SadadUrl => IsTestMode ? "https://secure.sadadqa.com/webpurchasepage" : "https://secure.sadadqa.com/webpurchasepage";
+        public string? PhpChecksumUrl => _configuration["Sadad:PhpChecksumUrl"] ?? Environment.GetEnvironmentVariable("SADAD_PHP_CHECKSUM_URL");
 
-        public SadadPaymentFormDto GeneratePaymentForm(SadadPaymentRequestDto request)
+        public async Task<SadadPaymentFormDto> GeneratePaymentFormAsync(SadadPaymentRequestDto request)
         {
             var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
             var orderId = request.OrderId ?? Guid.NewGuid().ToString();
             var txnAmount = request.Amount.ToString("F2");
             var itemName = request.ItemName ?? "Booking Payment";
 
-            // Build checksum data in EXACT order matching PHP reference
-            // PHP order: merchant_id, ORDER_ID, WEBSITE, TXN_AMOUNT, CUST_ID, EMAIL, MOBILE_NO, CALLBACK_URL, txnDate, productdetail
-            // NOTE: SADAD_WEBCHECKOUT_PAGE_LANGUAGE is NOT included in checksum (only in form)
+            string checksum;
+
+            // If PHP checksum URL is configured, use it; otherwise fall back to local generation
+            if (!string.IsNullOrEmpty(PhpChecksumUrl))
+            {
+                // Call PHP endpoint to generate checksum using original Sadad PHP code
+                var phpRequest = new
+                {
+                    secretKey = SecretKey,
+                    merchantId = MerchantId,
+                    orderId = orderId,
+                    website = WebsiteUrl,
+                    txnAmount = txnAmount,
+                    custId = request.CustomerEmail,
+                    email = request.CustomerEmail,
+                    mobileNo = request.CustomerMobile,
+                    callbackUrl = CallbackUrl,
+                    txnDate = txnDate,
+                    itemName = itemName
+                };
+
+                var jsonContent = new StringContent(
+                    JsonSerializer.Serialize(phpRequest, JsonOptions),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                _logger.LogInformation("Calling PHP checksum service at: {Url}", PhpChecksumUrl);
+
+                var response = await _httpClient.PostAsync(PhpChecksumUrl, jsonContent);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                _logger.LogInformation("PHP checksum service response: {Response}", responseBody);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("PHP checksum service failed, falling back to local generation: {Response}", responseBody);
+                    checksum = GenerateChecksumLocal(orderId, txnAmount, request, txnDate, itemName);
+                }
+                else
+                {
+                    var phpResponse = JsonSerializer.Deserialize<PhpChecksumResponse>(responseBody, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (phpResponse == null || !phpResponse.Success || string.IsNullOrEmpty(phpResponse.Checksumhash))
+                    {
+                        _logger.LogWarning("PHP checksum service returned invalid response, falling back to local generation");
+                        checksum = GenerateChecksumLocal(orderId, txnAmount, request, txnDate, itemName);
+                    }
+                    else
+                    {
+                        checksum = phpResponse.Checksumhash;
+                        _logger.LogInformation("Generated checksum from PHP: {Checksum}", checksum);
+                    }
+                }
+            }
+            else
+            {
+                _logger.LogInformation("PHP checksum URL not configured, using local generation");
+                checksum = GenerateChecksumLocal(orderId, txnAmount, request, txnDate, itemName);
+            }
+
+            return new SadadPaymentFormDto
+            {
+                ActionUrl = SadadUrl,
+                MerchantId = MerchantId,
+                OrderId = orderId,
+                Website = WebsiteUrl,
+                TxnAmount = txnAmount,
+                CustomerId = request.CustomerEmail,
+                Email = request.CustomerEmail,
+                MobileNo = request.CustomerMobile,
+                CallbackUrl = CallbackUrl,
+                TxnDate = txnDate,
+                ProductDetail = new SadadProductDetailDto
+                {
+                    OrderId = orderId,
+                    ItemName = itemName,
+                    Amount = txnAmount,
+                    Quantity = "1"
+                },
+                Version = "2.1",
+                ChecksumHash = checksum
+            };
+        }
+
+        private string GenerateChecksumLocal(string orderId, string txnAmount, SadadPaymentRequestDto request, string txnDate, string itemName)
+        {
             var checksumData = new
             {
                 merchant_id = MerchantId,
@@ -55,7 +145,53 @@ namespace HouseianaApi.Services
                 VERSION = "2.1",
                 CALLBACK_URL = CallbackUrl,
                 txnDate = txnDate,
-                // productdetail field order: order_id, quantity, amount, itemname (matches PHP exactly, no 'type')
+                productdetail = new[]
+                {
+                    new
+                    {
+                        order_id = orderId,
+                        quantity = "1",
+                        amount = txnAmount,
+                        itemname = itemName
+                    }
+                }
+            };
+
+            var checksumPayload = new
+            {
+                postData = checksumData,
+                secretKey = SecretKey
+            };
+
+            var jsonPayload = JsonSerializer.Serialize(checksumPayload, JsonOptions);
+            _logger.LogInformation("Local checksum JSON payload: {Payload}", jsonPayload);
+
+            var checksum = GenerateChecksum(jsonPayload);
+            _logger.LogInformation("Generated local checksum: {Checksum}", checksum);
+            return checksum;
+        }
+
+        // Keep synchronous version as fallback using local checksum generation
+        public SadadPaymentFormDto GeneratePaymentForm(SadadPaymentRequestDto request)
+        {
+            var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            var orderId = request.OrderId ?? Guid.NewGuid().ToString();
+            var txnAmount = request.Amount.ToString("F2");
+            var itemName = request.ItemName ?? "Booking Payment";
+
+            // Build checksum data in EXACT order matching PHP reference
+            var checksumData = new
+            {
+                merchant_id = MerchantId,
+                ORDER_ID = orderId,
+                WEBSITE = WebsiteUrl,
+                TXN_AMOUNT = txnAmount,
+                CUST_ID = request.CustomerEmail,
+                EMAIL = request.CustomerEmail,
+                MOBILE_NO = request.CustomerMobile,
+                VERSION = "2.1",
+                CALLBACK_URL = CallbackUrl,
+                txnDate = txnDate,
                 productdetail = new[]
                 {
                     new
@@ -102,6 +238,19 @@ namespace HouseianaApi.Services
                 Version = "2.1",
                 ChecksumHash = checksum
             };
+        }
+
+        private class PhpChecksumResponse
+        {
+            public bool Success { get; set; }
+            public string? Checksumhash { get; set; }
+            public PhpChecksumDebug? Debug { get; set; }
+        }
+
+        private class PhpChecksumDebug
+        {
+            public string? JsonPayload { get; set; }
+            public string? EncryptionKey { get; set; }
         }
 
         public string GenerateChecksum(string data)

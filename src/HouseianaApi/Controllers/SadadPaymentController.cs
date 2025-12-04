@@ -72,7 +72,7 @@ namespace HouseianaApi.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                var formData = _sadadService.GeneratePaymentForm(request);
+                var formData = await _sadadService.GeneratePaymentFormAsync(request);
 
                 return Ok(new
                 {
@@ -95,7 +95,7 @@ namespace HouseianaApi.Controllers
         {
             try
             {
-                var formData = _sadadService.GeneratePaymentForm(request);
+                var formData = await _sadadService.GeneratePaymentFormAsync(request);
 
                 var html = $@"
 <!DOCTYPE html>
