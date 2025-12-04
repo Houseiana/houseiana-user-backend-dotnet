@@ -126,13 +126,14 @@ namespace HouseianaApi.Services
                     Amount = txnAmount,
                     Quantity = "1"
                 },
-                Version = "2.1",
+                // VERSION removed - not in original Sadad sample
                 ChecksumHash = checksum
             };
         }
 
         private string GenerateChecksumLocal(string orderId, string txnAmount, SadadPaymentRequestDto request, string txnDate, string itemName)
         {
+            // Build checksum data matching original sadad.php - NO VERSION
             var checksumData = new
             {
                 merchant_id = MerchantId,
@@ -142,7 +143,6 @@ namespace HouseianaApi.Services
                 CUST_ID = request.CustomerEmail,
                 EMAIL = request.CustomerEmail,
                 MOBILE_NO = request.CustomerMobile,
-                VERSION = "2.1",
                 CALLBACK_URL = CallbackUrl,
                 txnDate = txnDate,
                 productdetail = new[]
@@ -179,7 +179,7 @@ namespace HouseianaApi.Services
             var txnAmount = request.Amount.ToString("F2");
             var itemName = request.ItemName ?? "Booking Payment";
 
-            // Build checksum data in EXACT order matching PHP reference
+            // Build checksum data matching original sadad.php - NO VERSION
             var checksumData = new
             {
                 merchant_id = MerchantId,
@@ -189,7 +189,6 @@ namespace HouseianaApi.Services
                 CUST_ID = request.CustomerEmail,
                 EMAIL = request.CustomerEmail,
                 MOBILE_NO = request.CustomerMobile,
-                VERSION = "2.1",
                 CALLBACK_URL = CallbackUrl,
                 txnDate = txnDate,
                 productdetail = new[]
@@ -235,7 +234,7 @@ namespace HouseianaApi.Services
                     Amount = txnAmount,
                     Quantity = "1"
                 },
-                Version = "2.1",
+                // VERSION removed - not in original Sadad sample
                 ChecksumHash = checksum
             };
         }

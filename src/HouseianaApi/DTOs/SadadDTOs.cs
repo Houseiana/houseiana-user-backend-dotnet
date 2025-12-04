@@ -23,7 +23,7 @@ namespace HouseianaApi.DTOs
         public string CustomerId { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string MobileNo { get; set; } = string.Empty;
-        public string Version { get; set; } = "2.1";
+        // Version removed - not in original Sadad sample
         public string CallbackUrl { get; set; } = string.Empty;
         public string TxnDate { get; set; } = string.Empty;
         public SadadProductDetailDto ProductDetail { get; set; } = new();
