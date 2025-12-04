@@ -113,6 +113,7 @@ namespace HouseianaApi.Controllers
         <input type=""hidden"" name=""CUST_ID"" value=""{formData.CustomerId}"">
         <input type=""hidden"" name=""EMAIL"" value=""{formData.Email}"">
         <input type=""hidden"" name=""MOBILE_NO"" value=""{formData.MobileNo}"">
+        <input type=""hidden"" name=""VERSION"" value=""{formData.Version}"">
         <input type=""hidden"" name=""CALLBACK_URL"" value=""{formData.CallbackUrl}"">
         <input type=""hidden"" name=""txnDate"" value=""{formData.TxnDate}"">
         <input type=""hidden"" name=""productdetail[0][order_id]"" value=""{formData.ProductDetail.OrderId}"">

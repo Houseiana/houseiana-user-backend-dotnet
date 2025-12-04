@@ -52,6 +52,7 @@ namespace HouseianaApi.Services
                 CUST_ID = request.CustomerEmail,
                 EMAIL = request.CustomerEmail,
                 MOBILE_NO = request.CustomerMobile,
+                VERSION = "2.1",
                 CALLBACK_URL = CallbackUrl,
                 txnDate = txnDate,
                 // productdetail field order: order_id, quantity, amount, itemname (matches PHP exactly, no 'type')
@@ -98,6 +99,7 @@ namespace HouseianaApi.Services
                     Amount = txnAmount,
                     Quantity = "1"
                 },
+                Version = "2.1",
                 ChecksumHash = checksum
             };
         }
@@ -161,7 +163,7 @@ namespace HouseianaApi.Services
         private string Encrypt(string input)
         {
             var key = System.Net.WebUtility.HtmlDecode(SecretKey + MerchantId);
-            var keyBytes = Encoding.UTF8.GetBytes(key.PadRight(16).Substring(0, 16));
+            var keyBytes = BuildKeyBytes(key);
             var ivBytes = Encoding.UTF8.GetBytes(IV);
 
             using var aes = Aes.Create();
@@ -180,7 +182,7 @@ namespace HouseianaApi.Services
         private string Decrypt(string crypt)
         {
             var key = System.Net.WebUtility.HtmlDecode(SecretKey + MerchantId);
-            var keyBytes = Encoding.UTF8.GetBytes(key.PadRight(16).Substring(0, 16));
+            var keyBytes = BuildKeyBytes(key);
             var ivBytes = Encoding.UTF8.GetBytes(IV);
 
             using var aes = Aes.Create();
@@ -194,6 +196,20 @@ namespace HouseianaApi.Services
             var decryptedBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
 
             return Encoding.UTF8.GetString(decryptedBytes);
+        }
+
+        private byte[] BuildKeyBytes(string key)
+        {
+            // Match PHP openssl_encrypt behaviour: use first 16 bytes, zero-padded if shorter
+            var keyBytes = Encoding.UTF8.GetBytes(key);
+            if (keyBytes.Length >= 16)
+            {
+                return keyBytes.Take(16).ToArray();
+            }
+
+            var padded = new byte[16];
+            Array.Copy(keyBytes, padded, keyBytes.Length);
+            return padded;
         }
     }
 }
