@@ -31,7 +31,7 @@ namespace HouseianaApi.Services
         public string WebsiteUrl => _configuration["Sadad:WebsiteUrl"] ?? "www.houseiana.com";
         public string CallbackUrl => _configuration["Sadad:CallbackUrl"] ?? throw new InvalidOperationException("Sadad CallbackUrl not configured");
         public bool IsTestMode => _configuration.GetValue<bool>("Sadad:TestMode", true);
-        public string SadadUrl => IsTestMode ? "https://sadadqa.com/webpurchase" : "https://sadad.qa/webpurchase";
+        public string SadadUrl => IsTestMode ? "https://secure.sadadqa.com/webpurchasepage" : "https://secure.sadadqa.com/webpurchasepage";
 
         public SadadPaymentFormDto GeneratePaymentForm(SadadPaymentRequestDto request)
         {
