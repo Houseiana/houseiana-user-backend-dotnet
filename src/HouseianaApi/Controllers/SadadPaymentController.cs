@@ -113,15 +113,12 @@ namespace HouseianaApi.Controllers
         <input type=""hidden"" name=""CUST_ID"" value=""{formData.CustomerId}"">
         <input type=""hidden"" name=""EMAIL"" value=""{formData.Email}"">
         <input type=""hidden"" name=""MOBILE_NO"" value=""{formData.MobileNo}"">
-        <input type=""hidden"" name=""SADAD_WEBCHECKOUT_PAGE_LANGUAGE"" value=""{formData.Language}"">
-        <input type=""hidden"" name=""VERSION"" value=""{formData.Version}"">
         <input type=""hidden"" name=""CALLBACK_URL"" value=""{formData.CallbackUrl}"">
         <input type=""hidden"" name=""txnDate"" value=""{formData.TxnDate}"">
         <input type=""hidden"" name=""productdetail[0][order_id]"" value=""{formData.ProductDetail.OrderId}"">
         <input type=""hidden"" name=""productdetail[0][itemname]"" value=""{formData.ProductDetail.ItemName}"">
         <input type=""hidden"" name=""productdetail[0][amount]"" value=""{formData.ProductDetail.Amount}"">
         <input type=""hidden"" name=""productdetail[0][quantity]"" value=""{formData.ProductDetail.Quantity}"">
-        <input type=""hidden"" name=""productdetail[0][type]"" value=""{formData.ProductDetail.Type}"">
         <input type=""hidden"" name=""checksumhash"" value=""{formData.ChecksumHash}"">
         <p style=""text-align: center; padding-top: 100px; font-family: Arial, sans-serif;"">
             Redirecting to Sadad payment gateway...

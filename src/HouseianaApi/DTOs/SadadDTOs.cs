@@ -23,10 +23,8 @@ namespace HouseianaApi.DTOs
         public string CustomerId { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string MobileNo { get; set; } = string.Empty;
-        public string Language { get; set; } = "ENG";
         public string CallbackUrl { get; set; } = string.Empty;
         public string TxnDate { get; set; } = string.Empty;
-        public string Version { get; set; } = "1.1";
         public SadadProductDetailDto ProductDetail { get; set; } = new();
         public string ChecksumHash { get; set; } = string.Empty;
     }
@@ -44,9 +42,6 @@ namespace HouseianaApi.DTOs
 
         [JsonPropertyName("quantity")]
         public string Quantity { get; set; } = "1";
-
-        [JsonPropertyName("type")]
-        public string Type { get; set; } = "line_item";
     }
 
     public class SadadCallbackDto

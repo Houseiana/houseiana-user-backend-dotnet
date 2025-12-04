@@ -89,17 +89,14 @@ namespace HouseianaApi.Services
                 CustomerId = request.CustomerEmail,
                 Email = request.CustomerEmail,
                 MobileNo = request.CustomerMobile,
-                Language = request.Language ?? "ENG",
                 CallbackUrl = CallbackUrl,
                 TxnDate = txnDate,
-                Version = "1.1",
                 ProductDetail = new SadadProductDetailDto
                 {
                     OrderId = orderId,
                     ItemName = itemName,
                     Amount = txnAmount,
-                    Quantity = "1",
-                    Type = "line_item"
+                    Quantity = "1"
                 },
                 ChecksumHash = checksum
             };
