@@ -32,4 +32,32 @@ public class UsersController : ControllerBase
 
         return Ok(user);
     }
+
+    /// <summary>
+    /// Create Sadad payment - returns form data to submit to Sadad
+    /// </summary>
+    [HttpPost("sadad/payment")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateSadadPayment([FromBody] SadadPaymentRequest request)
+    {
+        if (request.Amount <= 0)
+        {
+            return BadRequest(new { error = "Amount must be greater than 0" });
+        }
+
+        if (string.IsNullOrEmpty(request.OrderId))
+        {
+            return BadRequest(new { error = "OrderId is required" });
+        }
+
+        var response = await _usersService.GetSadadPayment(request);
+
+        if (!response.Success)
+        {
+            return BadRequest(new { error = response.Error });
+        }
+
+        return Ok(response);
+    }
 }

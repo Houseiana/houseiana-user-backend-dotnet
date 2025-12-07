@@ -36,6 +36,9 @@ if (string.IsNullOrEmpty(connectionString))
 builder.Services.AddDbContext<HouseianaDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+// Register HttpClient factory
+builder.Services.AddHttpClient();
+
 // Register Services
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IBookingManagerService, BookingManagerService>();
@@ -43,9 +46,6 @@ builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<BookingsAdminService>();
 builder.Services.AddScoped<AccountManagerService>();
-
-// Register HttpClient for Sadad payment service (calls PHP checksum endpoint)
-builder.Services.AddHttpClient<SadadPaymentService>();
 
 // Register Background Services
 builder.Services.AddHostedService<CalendarCleanupService>();
@@ -71,11 +71,8 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Houseiana API v1");
 });
 
-// Only use HTTPS redirection in development (Railway handles SSL termination)
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+// HTTPS redirection disabled - Railway handles SSL termination in production
+// and local development uses HTTP only
 app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
