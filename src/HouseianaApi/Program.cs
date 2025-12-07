@@ -46,6 +46,7 @@ builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<BookingsAdminService>();
 builder.Services.AddScoped<AccountManagerService>();
+builder.Services.AddHttpClient<SadadPaymentService>();
 
 // Register Background Services
 builder.Services.AddHostedService<CalendarCleanupService>();
