@@ -21,8 +21,8 @@ public class UsersService : IUsersService
     // Sadad configuration - must match Sadad dashboard settings exactly
     private const string MerchantId = "3601032";
     private const string SecretKey = "LkOx3OfmcIOH0t7F";
-    private const string Website = "www.houseiana.net";
-    private const string CallbackUrl = "https://www.houseiana.net/api/sadad/callback";
+    private const string Website = "houseiana.net";
+    private const string CallbackUrl = "https://houseiana.net/api/sadad/callback";
 
     public UsersService(HouseianaDbContext context, IHttpClientFactory httpClientFactory)
     {
