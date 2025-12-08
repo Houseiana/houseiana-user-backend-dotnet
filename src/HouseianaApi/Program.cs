@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using HouseianaApi.Data;
-using HouseianaApi.Services;
+using Houseiana.DAL;
+using Houseiana.Repositories;
+using Houseiana.Business;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +39,9 @@ builder.Services.AddDbContext<HouseianaDbContext>(options =>
 
 // Register HttpClient factory
 builder.Services.AddHttpClient();
+
+// Register Unit of Work and Repositories
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // Register Services
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();

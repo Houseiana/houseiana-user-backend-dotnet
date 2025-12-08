@@ -19,4 +19,12 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Houseiana.Business\Houseiana.Business.csproj" />
+    <ProjectReference Include="..\..\Houseiana.DAL\Houseiana.DAL.csproj" />
+    <ProjectReference Include="..\..\Houseiana.DTOs\Houseiana.DTOs.csproj" />
+    <ProjectReference Include="..\..\Houseiana.Enums\Houseiana.Enums.csproj" />
+    <ProjectReference Include="..\..\Houseiana.Repositories\Houseiana.Repositories.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using HouseianaApi.Data;
-using HouseianaApi.DTOs;
-using HouseianaApi.Enums;
-using HouseianaApi.Services;
+using Houseiana.DAL;
+using Houseiana.DTOs;
+using Houseiana.Enums;
+using Houseiana.Business;
 
 namespace HouseianaApi.Controllers
 {

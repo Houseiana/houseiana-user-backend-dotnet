@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using HouseianaApi.Services;
-using HouseianaApi.DTOs;
+using Houseiana.Business;
+using Houseiana.DTOs;
 
 namespace HouseianaApi.Controllers
 {
