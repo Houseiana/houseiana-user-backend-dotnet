@@ -104,7 +104,8 @@ public class UsersService : IUsersService
                 OrderId = request.OrderId,
                 ItemName = request.Description ?? "Booking Payment",
                 Amount = request.Amount.ToString("F2"),
-                Quantity = "1"
+                Quantity = "1",
+                Type = "line_item"
             }
         }
         };
@@ -210,6 +211,9 @@ public class SadadFormData
     [JsonPropertyName("VERSION")]
     public string Version { get; set; } = string.Empty;
 
+    [JsonPropertyName("SADAD_WEBCHECKOUT_PAGE_LANGUAGE")]
+    public string SadadWebcheckoutPageLanguage { get; set; } = "ENG";
+
     [JsonPropertyName("productdetail")]
     public List<ProductDetail> ProductDetails { get; set; } = new();
 }
@@ -227,4 +231,7 @@ public class ProductDetail
 
     [JsonPropertyName("itemname")]
     public string ItemName { get; set; } = string.Empty;
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "line_item";
 }
