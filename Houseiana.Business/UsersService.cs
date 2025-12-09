@@ -1,5 +1,6 @@
 using Houseiana.DAL.Models;
 using Houseiana.Repositories;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -32,110 +33,124 @@ public class UsersService : IUsersService
     {
         return await _unitOfWork.Users.GetByIdAsync(id);
     }
-
     public async Task<SadadPaymentResponse> GetSadadPayment(SadadPaymentRequest request)
     {
-        var client = _httpClientFactory.CreateClient();
-
         var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
-        var checksumRequest = new
+        // Prepare post data (exclude checksumhash)
+        var postData = new Dictionary<string, object>
         {
-            merchant_id = MerchantId,
-            WEBSITE = Website,
-            TXN_AMOUNT = request.Amount.ToString("F2"),
-            ORDER_ID = request.OrderId,
-            CALLBACK_URL = CallbackUrl,
-            MOBILE_NO = request.MobileNo ?? "99999999",
-            EMAIL = request.Email ?? "customer@example.com",
-            CUST_ID = request.Email ?? "customer@example.com",
-            productdetail = new[]
+            ["merchant_id"] = MerchantId,
+            ["ORDER_ID"] = request.OrderId,
+            ["WEBSITE"] = Website,
+            ["TXN_AMOUNT"] = request.Amount.ToString("F2"),
+            ["CUST_ID"] = request.Email ?? "customer@example.com",
+            ["EMAIL"] = request.Email ?? "customer@example.com",
+            ["MOBILE_NO"] = request.MobileNo ?? "99999999",
+            ["CALLBACK_URL"] = CallbackUrl,
+            ["txnDate"] = txnDate,
+            ["SADAD_WEBCHECKOUT_PAGE_LANGUAGE"] = "ENG",
+            ["VERSION"] = "2.1",
+            ["productdetail"] = new[]
             {
-                new
-                {
-                    order_id = request.OrderId,
-                    quantity = "1",
-                    amount = request.Amount.ToString("F2"),
-                    itemname = request.Description ?? "Booking Payment"
-                }
-            },
-            txnDate = txnDate,
-            VERSION = "2.1"
+            new
+            {
+                order_id = request.OrderId,
+                itemname = request.Description ?? "Booking Payment",
+                amount = request.Amount.ToString("F2"),
+                quantity = "1",
+                type = "line_item"
+            }
+        }
         };
 
-        var content = new StringContent(
-            JsonSerializer.Serialize(checksumRequest),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        client.DefaultRequestHeaders.Add("secretkey", SecretKey);
-        client.DefaultRequestHeaders.Add("Origin", $"https://{Website}");
-
-        var requestJson = JsonSerializer.Serialize(checksumRequest);
-
-        var response = await client.PostAsync(
-            "https://api.sadadqatar.com/api-v4/userbusinesses/generateChecksum",
-            content
-        );
-
-        var responseData = await response.Content.ReadAsStringAsync();
-
-        var debugInfo = $"Status: {(int)response.StatusCode}, " +
-                        $"Headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}, " +
-                        $"Body: '{responseData}'";
-
-        if (!response.IsSuccessStatusCode || string.IsNullOrEmpty(responseData))
+        // Wrap in checksum data
+        var checksumData = new
         {
-            return new SadadPaymentResponse
-            {
-                Success = false,
-                Error = $"Checksum API error: {debugInfo}"
-            };
-        }
+            postData = postData,
+            secretKey = SecretKey
+        };
 
-        var checksumResponse = JsonSerializer.Deserialize<ChecksumResponse>(responseData);
+        // Generate 4-character salt
+        string salt = GenerateSalt(4);
 
-        if (checksumResponse?.Checksum == null)
+        // JSON + "|" + salt
+        string concatenated = JsonSerializer.Serialize(checksumData) + "|" + salt;
+
+        // SHA256 hash + append salt
+        string hash = SHA256Hash(concatenated) + salt;
+
+        // AES-128-CBC encrypt hash using key = SecretKey + MerchantId, IV = "@@@@&&&&####$$$$"
+        string checksumHash = AESEncrypt(hash, SecretKey + MerchantId, "@@@@&&&&####$$$$");
+
+        // Prepare form data
+        var formData = new SadadFormData
         {
-            return new SadadPaymentResponse
+            MerchantId = MerchantId,
+            OrderId = request.OrderId,
+            Website = Website,
+            TxnAmount = request.Amount.ToString("F2"),
+            CustId = request.Email ?? "customer@example.com",
+            Email = request.Email ?? "customer@example.com",
+            MobileNo = request.MobileNo ?? "99999999",
+            CallbackUrl = CallbackUrl,
+            TxnDate = txnDate,
+            ChecksumHash = checksumHash,
+            Version = "2.1",
+            ProductDetails = new List<ProductDetail>
+        {
+            new ProductDetail
             {
-                Success = false,
-                Error = $"Failed to get checksum: {responseData}"
-            };
+                OrderId = request.OrderId,
+                ItemName = request.Description ?? "Booking Payment",
+                Amount = request.Amount.ToString("F2"),
+                Quantity = "1"
+            }
         }
+        };
 
         return new SadadPaymentResponse
         {
             Success = true,
             FormAction = "https://sadadqa.com/webpurchase",
-            FormData = new SadadFormData
-            {
-                MerchantId = MerchantId,
-                OrderId = request.OrderId,
-                Website = Website,
-                TxnAmount = request.Amount.ToString("F2"),
-                CustId = request.Email ?? "customer@example.com",
-                Email = request.Email ?? "customer@example.com",
-                MobileNo = request.MobileNo ?? "99999999",
-                CallbackUrl = CallbackUrl,
-                TxnDate = txnDate,
-                ChecksumHash = checksumResponse.Checksum,
-                Version = "2.1",
-                ProductDetails = new List<ProductDetail>
-                {
-                    new ProductDetail
-                    {
-                        OrderId = request.OrderId,
-                        Quantity = "1",
-                        Amount = request.Amount.ToString("F2"),
-                        ItemName = request.Description ?? "Booking Payment"
-                    }
-                }
-            }
+            FormData = formData
         };
     }
 
+    // -------------------- Helper Methods -------------------- //
+
+    private string GenerateSalt(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var random = new Random();
+        return new string(Enumerable.Range(0, length).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+    }
+
+    private string SHA256Hash(string input)
+    {
+        using var sha256 = SHA256.Create();
+        byte[] bytes = Encoding.UTF8.GetBytes(input);
+        byte[] hash = sha256.ComputeHash(bytes);
+        return BitConverter.ToString(hash).Replace("-", "").ToLower();
+    }
+
+    private string AESEncrypt(string input, string key, string iv)
+    {
+        byte[] keyBytes = Encoding.UTF8.GetBytes(key.Substring(0, 16));
+        byte[] ivBytes = Encoding.UTF8.GetBytes(iv);
+        byte[] inputBytes = Encoding.UTF8.GetBytes(input);
+
+        using var aes = Aes.Create();
+        aes.Key = keyBytes;
+        aes.IV = ivBytes;
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+
+        using var encryptor = aes.CreateEncryptor();
+        byte[] encrypted = encryptor.TransformFinalBlock(inputBytes, 0, inputBytes.Length);
+
+        return Convert.ToBase64String(encrypted);
+    }
     private class ChecksumResponse
     {
         [JsonPropertyName("checksum")]
