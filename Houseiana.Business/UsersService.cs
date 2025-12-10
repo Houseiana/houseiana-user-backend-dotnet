@@ -33,132 +33,58 @@ public class UsersService : IUsersService
     {
         return await _unitOfWork.Users.GetByIdAsync(id);
     }
+
     public async Task<SadadPaymentResponse> GetSadadPayment(SadadPaymentRequest request)
     {
         var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
-        // Sanitize OrderId - Sadad only accepts alphanumeric characters
-        var sanitizedOrderId = new string(request.OrderId.Where(char.IsLetterOrDigit).ToArray());
+        // Use OrderId as provided or generate one
+        var orderId = string.IsNullOrEmpty(request.OrderId) ? "ORDER" + DateTime.UtcNow.Ticks : request.OrderId;
+        var txnAmount = request.Amount.ToString("F2");
+        var email = request.Email ?? "test@houseiana.net";
+        var mobileNo = request.MobileNo ?? "97433001234";
 
-        // Prepare post data (exclude checksumhash)
-        var postData = new Dictionary<string, object>
-        {
-            ["merchant_id"] = MerchantId,
-            ["ORDER_ID"] = sanitizedOrderId,
-            ["WEBSITE"] = Website,
-            ["TXN_AMOUNT"] = request.Amount.ToString("F2"),
-            ["CUST_ID"] = request.Email ?? "customer@example.com",
-            ["EMAIL"] = request.Email ?? "customer@example.com",
-            ["MOBILE_NO"] = request.MobileNo ?? "99999999",
-            ["CALLBACK_URL"] = CallbackUrl,
-            ["txnDate"] = txnDate,
-            ["SADAD_WEBCHECKOUT_PAGE_LANGUAGE"] = "ENG",
-            ["VERSION"] = "2.1",
-            ["productdetail"] = new[]
-            {
-            new
-            {
-                order_id = sanitizedOrderId,
-                itemname = request.Description ?? "Booking Payment",
-                amount = request.Amount.ToString("F2"),
-                quantity = "1",
-                type = "line_item"
-            }
-        }
-        };
+        // Generate signature using SHA256 hash of: secretKey + merchant_id + ORDER_ID + TXN_AMOUNT
+        var signatureString = SecretKey + MerchantId + orderId + txnAmount;
+        var signature = GenerateSHA256Hash(signatureString);
 
-        // Wrap in checksum data
-        var checksumData = new
-        {
-            postData = postData,
-            secretKey = SecretKey
-        };
-
-        // Generate 4-character salt
-        string salt = GenerateSalt(4);
-
-        // JSON + "|" + salt
-        string concatenated = JsonSerializer.Serialize(checksumData) + "|" + salt;
-
-        // SHA256 hash + append salt
-        string hash = SHA256Hash(concatenated) + salt;
-
-        // AES-128-CBC encrypt hash using key = SecretKey + MerchantId, IV = "@@@@&&&&####$$$$"
-        string checksumHash = AESEncrypt(hash, SecretKey + MerchantId, "@@@@&&&&####$$$$");
-
-        // Prepare form data
+        // Prepare form data matching Sadad's exact format
         var formData = new SadadFormData
         {
             MerchantId = MerchantId,
-            OrderId = sanitizedOrderId,
+            OrderId = orderId,
             Website = Website,
-            TxnAmount = request.Amount.ToString("F2"),
-            CustId = request.Email ?? "customer@example.com",
-            Email = request.Email ?? "customer@example.com",
-            MobileNo = request.MobileNo ?? "99999999",
+            TxnAmount = txnAmount,
+            Email = email,
+            MobileNo = mobileNo,
             CallbackUrl = CallbackUrl,
             TxnDate = txnDate,
-            ChecksumHash = checksumHash,
-            Version = "2.1",
+            Signature = signature,
             ProductDetails = new List<ProductDetail>
-        {
-            new ProductDetail
             {
-                OrderId = sanitizedOrderId,
-                ItemName = request.Description ?? "Booking Payment",
-                Amount = request.Amount.ToString("F2"),
-                Quantity = "1",
-                Type = "line_item"
+                new ProductDetail
+                {
+                    OrderId = orderId,
+                    Amount = txnAmount,
+                    Quantity = "1"
+                }
             }
-        }
         };
 
-        return new SadadPaymentResponse
+        return await Task.FromResult(new SadadPaymentResponse
         {
             Success = true,
             FormAction = "https://sadadqa.com/webpurchase",
             FormData = formData
-        };
+        });
     }
 
-    // -------------------- Helper Methods -------------------- //
-
-    private string GenerateSalt(int length)
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        var random = new Random();
-        return new string(Enumerable.Range(0, length).Select(_ => chars[random.Next(chars.Length)]).ToArray());
-    }
-
-    private string SHA256Hash(string input)
+    private string GenerateSHA256Hash(string input)
     {
         using var sha256 = SHA256.Create();
         byte[] bytes = Encoding.UTF8.GetBytes(input);
         byte[] hash = sha256.ComputeHash(bytes);
         return BitConverter.ToString(hash).Replace("-", "").ToLower();
-    }
-
-    private string AESEncrypt(string input, string key, string iv)
-    {
-        byte[] keyBytes = Encoding.UTF8.GetBytes(key.Substring(0, 16));
-        byte[] ivBytes = Encoding.UTF8.GetBytes(iv);
-        byte[] inputBytes = Encoding.UTF8.GetBytes(input);
-
-        using var aes = Aes.Create();
-        aes.Key = keyBytes;
-        aes.IV = ivBytes;
-        aes.Mode = CipherMode.CBC;
-        aes.Padding = PaddingMode.PKCS7;
-
-        using var encryptor = aes.CreateEncryptor();
-        byte[] encrypted = encryptor.TransformFinalBlock(inputBytes, 0, inputBytes.Length);
-
-        return Convert.ToBase64String(encrypted);
-    }
-    private class ChecksumResponse
-    {
-        [JsonPropertyName("checksum")]
-        public string? Checksum { get; set; }
     }
 }
 
@@ -193,10 +119,7 @@ public class SadadFormData
     [JsonPropertyName("TXN_AMOUNT")]
     public string TxnAmount { get; set; } = string.Empty;
 
-    [JsonPropertyName("CUST_ID")]
-    public string CustId { get; set; } = string.Empty;
-
-    [JsonPropertyName("EMAIL")]
+    [JsonPropertyName("email")]
     public string Email { get; set; } = string.Empty;
 
     [JsonPropertyName("MOBILE_NO")]
@@ -208,14 +131,8 @@ public class SadadFormData
     [JsonPropertyName("txnDate")]
     public string TxnDate { get; set; } = string.Empty;
 
-    [JsonPropertyName("checksumhash")]
-    public string ChecksumHash { get; set; } = string.Empty;
-
-    [JsonPropertyName("VERSION")]
-    public string Version { get; set; } = string.Empty;
-
-    [JsonPropertyName("SADAD_WEBCHECKOUT_PAGE_LANGUAGE")]
-    public string SadadWebcheckoutPageLanguage { get; set; } = "ENG";
+    [JsonPropertyName("signature")]
+    public string Signature { get; set; } = string.Empty;
 
     [JsonPropertyName("productdetail")]
     public List<ProductDetail> ProductDetails { get; set; } = new();
@@ -231,10 +148,4 @@ public class ProductDetail
 
     [JsonPropertyName("amount")]
     public string Amount { get; set; } = string.Empty;
-
-    [JsonPropertyName("itemname")]
-    public string ItemName { get; set; } = string.Empty;
-
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = "line_item";
 }
