@@ -18,8 +18,10 @@ public class UsersService : IUsersService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IHttpClientFactory _httpClientFactory;
 
-    private const string SecretKey = "LkOx3OfmcIOH0t7F";
-    private const string MerchantId = "3601032";
+    // ********************************************
+    // ********************************************
+    private const string SecretKey = "LkOx3OfmcIOH0t7F";   
+    private const string MerchantId = "3601032";          
     private const string Website = "houseiana.net";
     private const string CallbackUrl = "https://houseiana.net/api/sadad/callback";
 
@@ -36,13 +38,23 @@ public class UsersService : IUsersService
 
     public async Task<SadadPaymentResponse> GetSadadPayment(SadadPaymentRequest request)
     {
-        var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var orderId = string.IsNullOrEmpty(request.OrderId) ? "ORDER" + DateTime.UtcNow.Ticks : request.OrderId;
+        // ********************************************
+        // CHANGE 1:
+        // Do NOT use UTC
+        // ********************************************
+        var txnDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        var orderId = string.IsNullOrEmpty(request.OrderId)
+                        ? "ORDER" + DateTime.Now.Ticks
+                        : request.OrderId;
+
         var txnAmount = request.Amount.ToString("F2");
         var email = request.Email ?? "test@houseiana.net";
         var mobileNo = request.MobileNo ?? "97433001234";
 
-        // Step 1: Build Params Dictionary (same as Sadad sample)
+        // ********************************************
+        // CHANGE 2
+        // ********************************************
         var paramsDict = new Dictionary<string, string>()
         {
             {"CALLBACK_URL", CallbackUrl},
@@ -55,21 +67,27 @@ public class UsersService : IUsersService
             {"txnDate", txnDate}
         };
 
-        // Step 2: Sort A-Z (same as PHP ksort)
+        // Sort EXACT like PHP ksort()
         var sortedParams = new SortedDictionary<string, string>(paramsDict, StringComparer.Ordinal);
 
-        // Step 3: Build Signature String
+        // ********************************************
+        // CHANGE 3:
+        // Signature = secret_key + concatenated values
+        // ********************************************
         var sb = new StringBuilder();
-        sb.Append(SecretKey); // Start with secret key
+        sb.Append(SecretKey);
 
         foreach (var item in sortedParams)
         {
-            sb.Append(item.Value); // EXACT concatenation - no separators
+            sb.Append(item.Value);
         }
 
         string signatureString = sb.ToString();
 
-        // Step 4: SHA256 Hash
+        // ********************************************
+        // CHANGE 4:
+        // SHA256 must be lowercase hex
+        // ********************************************
         string signature;
         using (SHA256 sha256 = SHA256.Create())
         {
@@ -77,7 +95,24 @@ public class UsersService : IUsersService
             signature = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
 
-        // Build productdetail array
+        // ********************************************
+        // DEBUG PRINTS (useful when testing in console)
+        // ********************************************
+        Console.WriteLine("------ SIGNATURE STRING ------");
+        Console.WriteLine(signatureString);
+
+        Console.WriteLine("\n------ GENERATED SIGNATURE ------");
+        Console.WriteLine(signature);
+
+        Console.WriteLine("\n------ POST FIELDS ------");
+        foreach (var kv in sortedParams)
+            Console.WriteLine($"{kv.Key} = {kv.Value}");
+
+        Console.WriteLine($"signature = {signature}");
+
+        // ********************************************
+        // PRODUCT DETAILS
+        // ********************************************
         var productDetails = new List<ProductDetail>
         {
             new ProductDetail
@@ -88,7 +123,7 @@ public class UsersService : IUsersService
             }
         };
 
-        // Prepare form data
+        // Form payload returned to frontend
         var formData = new SadadFormData
         {
             MerchantId = MerchantId,
