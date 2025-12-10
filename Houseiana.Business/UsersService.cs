@@ -18,8 +18,8 @@ public class UsersService : IUsersService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IHttpClientFactory _httpClientFactory;
 
-    private const string MerchantId = "3601032";
     private const string SecretKey = "LkOx3OfmcIOH0t7F";
+    private const string MerchantId = "3601032";
     private const string Website = "houseiana.net";
     private const string CallbackUrl = "https://houseiana.net/api/sadad/callback";
 
@@ -37,18 +37,58 @@ public class UsersService : IUsersService
     public async Task<SadadPaymentResponse> GetSadadPayment(SadadPaymentRequest request)
     {
         var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-
-        // Use OrderId as provided or generate one
         var orderId = string.IsNullOrEmpty(request.OrderId) ? "ORDER" + DateTime.UtcNow.Ticks : request.OrderId;
         var txnAmount = request.Amount.ToString("F2");
         var email = request.Email ?? "test@houseiana.net";
         var mobileNo = request.MobileNo ?? "97433001234";
 
-        // Generate signature using SHA256 hash of: secretKey + merchant_id + ORDER_ID + TXN_AMOUNT
-        var signatureString = SecretKey + MerchantId + orderId + txnAmount;
-        var signature = GenerateSHA256Hash(signatureString);
+        // Step 1: Build Params Dictionary (same as Sadad sample)
+        var paramsDict = new Dictionary<string, string>()
+        {
+            {"CALLBACK_URL", CallbackUrl},
+            {"email", email},
+            {"MOBILE_NO", mobileNo},
+            {"ORDER_ID", orderId},
+            {"TXN_AMOUNT", txnAmount},
+            {"WEBSITE", Website},
+            {"merchant_id", MerchantId},
+            {"txnDate", txnDate}
+        };
 
-        // Prepare form data matching Sadad's exact format
+        // Step 2: Sort A-Z (same as PHP ksort)
+        var sortedParams = new SortedDictionary<string, string>(paramsDict, StringComparer.Ordinal);
+
+        // Step 3: Build Signature String
+        var sb = new StringBuilder();
+        sb.Append(SecretKey); // Start with secret key
+
+        foreach (var item in sortedParams)
+        {
+            sb.Append(item.Value); // EXACT concatenation - no separators
+        }
+
+        string signatureString = sb.ToString();
+
+        // Step 4: SHA256 Hash
+        string signature;
+        using (SHA256 sha256 = SHA256.Create())
+        {
+            byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(signatureString));
+            signature = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+        }
+
+        // Build productdetail array
+        var productDetails = new List<ProductDetail>
+        {
+            new ProductDetail
+            {
+                OrderId = orderId,
+                Amount = txnAmount,
+                Quantity = "1"
+            }
+        };
+
+        // Prepare form data
         var formData = new SadadFormData
         {
             MerchantId = MerchantId,
@@ -60,15 +100,7 @@ public class UsersService : IUsersService
             CallbackUrl = CallbackUrl,
             TxnDate = txnDate,
             Signature = signature,
-            ProductDetails = new List<ProductDetail>
-            {
-                new ProductDetail
-                {
-                    OrderId = orderId,
-                    Amount = txnAmount,
-                    Quantity = "1"
-                }
-            }
+            ProductDetails = productDetails
         };
 
         return await Task.FromResult(new SadadPaymentResponse
@@ -77,14 +109,6 @@ public class UsersService : IUsersService
             FormAction = "https://sadadqa.com/webpurchase",
             FormData = formData
         });
-    }
-
-    private string GenerateSHA256Hash(string input)
-    {
-        using var sha256 = SHA256.Create();
-        byte[] bytes = Encoding.UTF8.GetBytes(input);
-        byte[] hash = sha256.ComputeHash(bytes);
-        return BitConverter.ToString(hash).Replace("-", "").ToLower();
     }
 }
 
@@ -143,9 +167,9 @@ public class ProductDetail
     [JsonPropertyName("order_id")]
     public string OrderId { get; set; } = string.Empty;
 
-    [JsonPropertyName("quantity")]
-    public string Quantity { get; set; } = string.Empty;
-
     [JsonPropertyName("amount")]
     public string Amount { get; set; } = string.Empty;
+
+    [JsonPropertyName("quantity")]
+    public string Quantity { get; set; } = string.Empty;
 }
