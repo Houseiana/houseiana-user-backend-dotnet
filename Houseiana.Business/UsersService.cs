@@ -37,11 +37,14 @@ public class UsersService : IUsersService
     {
         var txnDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
+        // Sanitize OrderId - Sadad only accepts alphanumeric characters
+        var sanitizedOrderId = new string(request.OrderId.Where(char.IsLetterOrDigit).ToArray());
+
         // Prepare post data (exclude checksumhash)
         var postData = new Dictionary<string, object>
         {
             ["merchant_id"] = MerchantId,
-            ["ORDER_ID"] = request.OrderId,
+            ["ORDER_ID"] = sanitizedOrderId,
             ["WEBSITE"] = Website,
             ["TXN_AMOUNT"] = request.Amount.ToString("F2"),
             ["CUST_ID"] = request.Email ?? "customer@example.com",
@@ -55,7 +58,7 @@ public class UsersService : IUsersService
             {
             new
             {
-                order_id = request.OrderId,
+                order_id = sanitizedOrderId,
                 itemname = request.Description ?? "Booking Payment",
                 amount = request.Amount.ToString("F2"),
                 quantity = "1",
@@ -87,7 +90,7 @@ public class UsersService : IUsersService
         var formData = new SadadFormData
         {
             MerchantId = MerchantId,
-            OrderId = request.OrderId,
+            OrderId = sanitizedOrderId,
             Website = Website,
             TxnAmount = request.Amount.ToString("F2"),
             CustId = request.Email ?? "customer@example.com",
@@ -101,7 +104,7 @@ public class UsersService : IUsersService
         {
             new ProductDetail
             {
-                OrderId = request.OrderId,
+                OrderId = sanitizedOrderId,
                 ItemName = request.Description ?? "Booking Payment",
                 Amount = request.Amount.ToString("F2"),
                 Quantity = "1",
